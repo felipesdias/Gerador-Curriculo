@@ -1,0 +1,38 @@
+{
+  "name": "curriculo",
+  "version": "1.0.0",
+  "description": "Gerador de curriculo",
+  "productName": "Gerador de Curriculo",
+  "cordovaId": "org.cordova.quasar.app",
+  "author": "Felipe de Souza Dias <felipe.s.dias@outlook.com>",
+  "private": true,
+  "scripts": {
+    "test": "echo \"No test specified\" && exit 0"
+  },
+  "dependencies": {
+    "file-saver": "^2.0.0-rc.3",
+    "jszip": "^3.1.5",
+    "jszip-utils": "0.0.2",
+    "pdfmake": "^0.1.38",
+    "webfontloader": "^1.6.28"
+  },
+  "devDependencies": {
+    "devtron": "^1.4.0",
+    "electron": "^2.0.0",
+    "electron-debug": "^1.5.0",
+    "electron-devtools-installer": "^2.2.4",
+    "electron-packager": "^12.2.0",
+    "quasar-cli": "^0.17.0",
+    "strip-ansi": "=3.0.1"
+  },
+  "engines": {
+    "node": ">= 8.9.0",
+    "npm": ">= 5.6.0",
+    "yarn": ">= 1.6.0"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not ie <= 10"
+  ]
+}
