@@ -40,6 +40,8 @@ module.exports = function (ctx) {
         'QCheckbox',
         'QBtn',
         'QColorPicker',
+        'QModal',
+        'QCard',
       ],
       directives: [
         'Ripple',

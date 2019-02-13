@@ -2,13 +2,12 @@
     <div class="columns" style="padding-top: 10px; padding-left: 10px;">
         <div>
             <div v-touch-pan.prevent.stop="handler2" :style="boxTexto" class="boxTextoFora" v-show="img">
-                <div v-touch-pan.prevent.stop="handler" class="noselect boxTexto" v-show="img">
-                    <span v-html="getTexto"></span>
+                <div v-touch-pan.prevent.stop="handler" class="noselect boxTexto" v-show="img" v-html="getTexto">
                 </div>
             </div>
-            
-            <img id="page" :src="img" />
-            
+
+            <img id="page" style="border: 1px solid black;" :src="img" />
+
         </div>
         <div class="row items-center">
             <div class="col-3">
@@ -40,9 +39,10 @@
             </div>
             <div class="row items-center">
                 <span class="col-auto q-mr-sm"> Tamanho letra: </span>
-                <!-- <q-slider class="col" v-model="texto.tam.value" :min="texto.tam.min" :max="texto.tam.max" /> -->
                 <input type="number" step="1" style="width: 70px" v-model="texto.tam.value" />
                 <q-checkbox class="q-pl-lg" label="Justificar texto" v-model="texto.justify" />
+                <span class="col-auto q-mr-sm q-ml-xl"> Tabulação: </span>
+                <q-slider class="col-4" v-model="tabulacao.value" :min="tabulacao.min" :max="tabulacao.max" />
             </div>
             <div class="row items-center">
                 <span class="col-auto q-mr-sm"> Cor (hexadecimal): </span>
@@ -60,10 +60,15 @@
                     <q-input v-model="email.corpo" inverted color="tertiary" type="textarea" float-label="Mensagem do email"/>
                 </div>
                 <div class="col">
-                    <q-input v-model="nomes" inverted color="tertiary" type="textarea" float-label="Lista de pessoas"/>
+                    <q-input id="teste" v-model="nomes" inverted color="tertiary" type="textarea" float-label="Lista de pessoas"/>
                 </div>
             </div>
         </div>
+        <q-modal v-model="imprimindo">
+            <q-card class="bg-white q-pa-md q-ma-md">
+                Gerado {{impressao}} de {{total}}
+            </q-card>
+        </q-modal>
     </div>
 </template>
 
@@ -73,15 +78,23 @@ import JSZip from 'jszip';
 import JSZipUtils from 'jszip-utils';
 import { saveAs } from 'file-saver';
 import * as pdfMake from 'pdfmake/build/pdfmake';
-import * as pdfFonts from 'pdfmake/build/vfs_fonts';
+import * as pdfFonts from './vfs_fonts';
 import WebFontLoader from 'webfontloader';
 
 export default {
     name: 'GeradorPDF',
     data () {
         return {
+            imprimindo: false,
+            impressao: 0,
+            total: 0,
             exe: null,
             mostrar: false,
+            tabulacao: {
+                min: 0,
+                max: 100,
+                value: 0,
+            },
             email: {
                 titulo: '',
                 corpo: '',
@@ -102,30 +115,22 @@ export default {
                 min: 0
             },
             texto: {
-                value: `Olá [NOME] você tem [IDADE] anos [EMAIL]`,
+                value: `Certificamos que [NOME] participou da palestra Nutrição e Adubação para Cafeicultura de Montanha no dia 20 de março de 2018, totalizando a carga horária de 2 horas em Viçosa, MG.`,
                 tam: {
                     min: 1,
                     max: 1000,
                     value: 14,
                 },
-                color: '#FF0000',
-                justify: false,
+                color: '#000000',
+                justify: true,
             },
             nomes: `NOME	IDADE	EMAIL
 Felipe Dias	23	felipe.s.dias@outlook.com
-Yasmim Cecila	24	felipe.s.dias@outlook.com`,
+Yasmim Cecila	23	yasmim.linch@gmail.com`,
             img: null,
         }
     },
     created() {
-        JSZipUtils.getBinaryContent("../statics/a.exe", (err, data) => {
-            if(err) {
-                throw err; // or handle the error
-            } 
-
-            this.exe = data;
-        });
-
         String.prototype.replaceAll = function(search, replacement) {
             return this.replace(new RegExp(search, 'g'), replacement);
         };
@@ -134,7 +139,34 @@ Yasmim Cecila	24	felipe.s.dias@outlook.com`,
             typekit: {
                 id: 'cabin-sketch;adamina;advent-pro',
                 api: '//use.edgefonts.net'
-            } 
+            }
+        });
+    },
+    mounted() {
+        this.$nextTick(() => {
+            document.querySelectorAll("textarea").forEach(item => {
+                item.addEventListener('keydown', function(e) {
+                    if(e.keyCode === 9) { // tab was pressed
+                        // get caret position/selection
+                        var start = this.selectionStart;
+                        var end = this.selectionEnd;
+
+                        var target = e.target;
+                        var value = target.value;
+
+                        // set textarea value to: text before caret + tab + text after caret
+                        target.value = value.substring(0, start)
+                                    + "\t"
+                                    + value.substring(end);
+
+                        // put caret at right position again (add one for the tab)
+                        this.selectionStart = this.selectionEnd = start + 1;
+
+                        // prevent the focus lose
+                        e.preventDefault();
+                    }
+                }, false);
+            })
         });
     },
     computed: {
@@ -150,7 +182,12 @@ Yasmim Cecila	24	felipe.s.dias@outlook.com`,
             return style;
         },
         getTexto() {
-            return `<strong> ${this.texto.value} </strong>`;
+            let text = `${this.texto.value}`;
+            this.nomes.split('\n')[0].split('\t').forEach(key => {
+                text = text.split(`[${key}]`).join(`<strong>[${key}]</strong>`);
+            });
+            text = `<strong style="margin-right: ${this.tabulacao.value}px"></strong>${text}`;
+            return text;
         }
     },
     methods: {
@@ -163,22 +200,41 @@ Yasmim Cecila	24	felipe.s.dias@outlook.com`,
         },
         generateText(text, sub) {
             const complete = [];
-            
+
+            text = `${text}`;
+
             Object.keys(sub).forEach(key => {
                 text = text.split(`[${key}]`).join(`|${sub[key]}|`);
             });
 
             text.split('|').forEach((item, index) => {
-                if(index%2 === 0)
-                    complete.push({text: item});
-                else
-                    complete.push({text: item, bold: true});
+                const it = {
+                    text: item,
+                    font: 'calibri',
+                };
+
+                if(index === 0)
+                    it.leadingIndent = this.tabulacao.value;
+
+                if(index%2 === 1)
+                    it.bold = true;
+
+                complete.push(it);
             });
-            
             return complete;
         },
         geraPdf(justOne) {
             const zip = new JSZip();
+
+            pdfMake.vfs = pdfFonts.pdfMake.vfs;
+            pdfMake.fonts = {
+              calibri: {
+                normal: 'Calibri.ttf',
+                bold: 'Calibri-B.TTF',
+                italics: 'Calibri-I.TTF',
+                bolditalics: 'Calibri-IB.TTF'
+              },
+            }
 
             const headers = this.nomes.split('\n')[0].split('\t');
             let nomes = this.nomes.split('\n').filter((item, index) => (index > 0 && item.length > 2)).map(item => {
@@ -191,52 +247,69 @@ Yasmim Cecila	24	felipe.s.dias@outlook.com`,
 
             if(justOne) nomes = [nomes[0]];
 
-            zip.file("enviar.exe", this.exe);
             zip.file("config/titulo.txt", this.email.titulo);
             zip.file("config/mensagem.txt", this.email.corpo);
             zip.file("config/nomes.txt", nomes.map(nome => {
                 return `${nome.NOME}\t${nome.EMAIL}`;
             }).join('\n'));
 
-            const downloadZip = () => {
-                zip.generateAsync({ type: 'blob' }).then(content => {
-                    saveAs(content, 'Certificados.zip');
-                });
-            }
-
-            nomes.forEach((nome, i) => {
-                const content = [
+            const makePdf = (linha) => {
+              const content = [
                     {
-                        text: this.generateText(this.texto.value, nome),
+                        text: this.generateText(this.texto.value, linha),
                         margin: [this.posX.value, this.posY.value, 5 + this.posX.max - (this.tamX.value + this.posX.value), 0],
                         fontSize: this.texto.tam.value,
+                        font: 'calibri',
                         color: this.texto.color,
                     },
                 ];
-    
+
                 if(this.texto.justify)
                     content[0].alignment = 'justify';
-    
+
                 const docDefinition = {
                     pageSize: { width: this.posX.max, height: this.posY.max },
                     pageMargins: [0, 0, 0, 0],
                     background: { image: this.img },
                     content,
                 }
-    
-                pdfMake.vfs = pdfFonts.pdfMake.vfs;
+
+                return pdfMake.createPdf(docDefinition);
+            }
+
+            const montaZip = async (i, passo) => {
+                if (i >= nomes.length) return;
+
+                const nome = nomes[i];
+                const pdf = makePdf(nomes[i])
 
                 if(justOne) {
-                    pdfMake.createPdf(docDefinition).download();
+                    this.imprimindo = false;
+                    pdf.open();
                 } else {
-                    pdfMake.createPdf(docDefinition).getBlob(blob => {
-                        console.log(blob);
+                    pdf.getBlob(blob => {
                         zip.file(`pdf/${nome.NOME}.pdf`, blob);
+                        this.impressao += 1;
 
-                        if(i === nomes.length-1)
-                            downloadZip();
+                        this.$nextTick(() => {
+                            if(i === nomes.length-1) {
+                                zip.generateAsync({ type: 'blob' }).then(content => {
+                                    saveAs(content, 'Certificados.zip');
+                                });
+                            }
+
+                            montaZip(i + passo, passo);
+                        });
                     });
                 }
+            }
+
+            this.impressao = 0;
+            this.total = nomes.length;
+            this.imprimindo = true;
+
+            this.$nextTick(() => {
+                montaZip(0, 1);
             });
 
         },
@@ -252,20 +325,22 @@ Yasmim Cecila	24	felipe.s.dias@outlook.com`,
                     }, 200);
                 });
             };
-            
+
         },
         defineRanges() {
             const el = document.getElementById("page");
             const maxX = dom.width(el);
             const maxY = dom.height(el);
 
-            this.posX.max = this.tamX.max = maxX;
-            this.posY.max = maxY;
+            this.posX.max = this.tamX.max = this.tabulacao.max = Math.floor(maxX);
+            this.posY.max = Math.floor(maxY);
+
 
             this.$nextTick(() => {
                 this.posX.value = 51;
                 this.posY.value = 51;
                 this.tamX.value = 201;
+                this.tabulacao.value = 0;
             });
 
             this.$forceUpdate();
@@ -281,12 +356,14 @@ Yasmim Cecila	24	felipe.s.dias@outlook.com`,
     box-shadow: 0 0 0 1px red;
     z-index: 1000;
     cursor: move;
+    white-space: pre-wrap;
+    font-family: calibri;
 }
 
 .boxTextoFora {
     position: absolute;
     cursor: e-resize;
-    padding-right: 5px;
+    padding-right: 8px;
 }
 
 .noselect {
